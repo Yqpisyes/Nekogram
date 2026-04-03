@@ -1,19 +1,19 @@
-name: Build Original Nekogram
+name: Build Safe Nekogram (Debug Version)
 
 on:
-  workflow_dispatch: # 手动触发
+  workflow_dispatch: # 手动点击 Actions 页面上的按钮触发
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
         with:
-          repository: 'Nekogram/Nekogram' # 直接拉取官方仓库
-          submodules: recursive
-          fetch-depth: 1 # 只拉取最新提交，节省空间和时间
+          repository: 'Nekogram/Nekogram'
+          submodules: recursive # 必须包含子模块，否则 C++ 部分会报错
+          fetch-depth: 1
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -22,20 +22,26 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Install NDK
+      - name: Setup Android NDK
         uses: android-actions/setup-android@v3
         with:
-          ndk-version: '25.2.9519653' # Nekogram 目前常用的 NDK 版本
+          ndk-version: '25.2.9519653' # 强制指定 NDK 版本，防止环境冲突
 
-      - name: Grant Execute Permission
-        run: chmod +x gradlew
+      - name: Prepare local.properties
+        # 注入基础 ID，防止 Gradle 因为找不到变量而提前结束
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          echo "APP_ID=8" >> local.properties
+          echo "APP_HASH=1d6f0d5888051d62ec30c613038a829e" >> local.properties
+          chmod +x gradlew
 
-      - name: Build Arm64 Release
-        # 建议先编译 arm64-v8a，速度最快且适配绝大多数现代手机
-        run: ./gradlew assembleArm64-v8aRelease --stacktrace
-        
-      - name: Upload APK
+      - name: Build Arm64 Debug APK
+        # 使用 assembleDebug 绕过所有 Release 签名校验
+        # 只编译 arm64-v8a 架构（目前绝大多数安卓手机），速度最快
+        run: ./gradlew assembleArm64-v8aDebug --stacktrace
+
+      - name: Upload Safe APK
         uses: actions/upload-artifact@v4
         with:
-          name: Nekogram-Arm64-v8a
-          path: app/build/outputs/apk/arm64-v8a/release/*.apk
+          name: Nekogram-Debug-Safe
+          path: app/build/outputs/apk/arm64-v8a/debug/*.apk
