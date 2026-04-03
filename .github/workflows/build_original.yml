@@ -1,7 +1,7 @@
-name: Build Safe Nekogram (Debug Version)
+name: Build Nekogram (JDK11 Compatibility)
 
 on:
-  workflow_dispatch: # 手动点击 Actions 页面上的按钮触发
+  workflow_dispatch:
 
 jobs:
   build:
@@ -12,36 +12,38 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: 'Nekogram/Nekogram'
-          submodules: recursive # 必须包含子模块，否则 C++ 部分会报错
+          submodules: recursive
           fetch-depth: 1
 
-      - name: Set up JDK 17
+      - name: Set up JDK 11  # 尝试切换到兼容性更好的 JDK 11
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '11'
           distribution: 'temurin'
           cache: 'gradle'
 
       - name: Setup Android NDK
         uses: android-actions/setup-android@v3
         with:
-          ndk-version: '25.2.9519653' # 强制指定 NDK 版本，防止环境冲突
+          ndk-version: '25.2.9519653'
 
-      - name: Prepare local.properties
-        # 注入基础 ID，防止 Gradle 因为找不到变量而提前结束
+      - name: Prepare Config
         run: |
+          # 确保所有的配置文件都到位
           echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
           echo "APP_ID=8" >> local.properties
           echo "APP_HASH=1d6f0d5888051d62ec30c613038a829e" >> local.properties
           chmod +x gradlew
 
-      - name: Build Arm64 Debug APK
-        # 使用 assembleDebug 绕过所有 Release 签名校验
-        # 只编译 arm64-v8a 架构（目前绝大多数安卓手机），速度最快
-        run: ./gradlew assembleArm64-v8aDebug --stacktrace
+      - name: Build Arm64 Debug
+        # 增加 --no-daemon 模式，这在云端编译时更稳定，容易暴露真实的初段报错
+        run: ./gradlew assembleArm64-v8aDebug --stacktrace --no-daemon
+        env:
+          APP_ID: 8
+          APP_HASH: 1d6f0d5888051d62ec30c613038a829e
 
-      - name: Upload Safe APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Nekogram-Debug-Safe
+          name: Nekogram-JDK11-Build
           path: app/build/outputs/apk/arm64-v8a/debug/*.apk
